@@ -265,10 +265,10 @@
     </div>
   </div>
   <p class="disclaimer">
-    Wszystkie 5 linków otwiera się z wybranym regionem. Cenę i powierzchnię
-    da się dołączyć do adresu tylko dla Otodom i OLX — pozostałe portale
-    (Domiporta, Nieruchomości-online, GetHome) tego nie udostępniają, więc
-    te kryteria ustawiasz na miejscu.
+    OLX otwiera się od razu posortowany od najnowszych ogłoszeń (potwierdzone
+    na żywo). Otodom nie udostępnia sortowania przez adres URL — trzeba
+    ustawić je ręcznie na miejscu (przycisk "Sortuj" na górze listy).
+    Cenę/powierzchnię da się dołączyć do adresu tylko dla Otodom i OLX.
   </p>
 
   <p class="section-label">Bezpośrednio na portalu — domy</p>
@@ -388,6 +388,9 @@
       const regionPath = region.olx ? `${region.olx}/` : "";
       const base = `https://www.olx.pl/nieruchomosci/${typePath}/sprzedaz/${regionPath}`;
       const params = new URLSearchParams();
+      // Potwierdzone na żywo: OLX faktycznie stosuje ten parametr (serwer
+      // zwraca stronę z opcją "Najnowsze" już zaznaczoną w rozwijanej liście).
+      params.set("search[order]", "created_at:desc");
       if (priceMin) params.set("search[filter_float_price:from]", priceMin);
       if (priceMax) params.set("search[filter_float_price:to]", priceMax);
       if (areaMin) params.set("search[filter_float_m:from]", areaMin);
