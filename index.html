@@ -131,6 +131,63 @@
     color:#8a9a95;
   }
 
+  /* ---------- FILTER FORM ---------- */
+  .filter-card{
+    max-width:420px;
+    margin:10px auto 0;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+  }
+  .filter-row{ margin-bottom:14px; }
+  .filter-row:last-child{ margin-bottom:0; }
+  .filter-label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:#5b6d67;
+    margin-bottom:6px;
+  }
+  .filter-row select,
+  .filter-row input{
+    width:100%;
+    padding:11px 12px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    font-size:15px;
+    font-family:var(--sans);
+    background:#fbfcfb;
+    color:var(--ink);
+  }
+  .filter-row select:focus,
+  .filter-row input:focus{ outline:none; border-color:var(--survey); }
+  .filter-pair{ display:flex; gap:8px; }
+  .filter-pair > div{ flex:1; }
+
+  .generate-btn{
+    width:100%;
+    margin-top:4px;
+    padding:14px;
+    background:var(--survey);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    font-weight:700;
+    font-size:15px;
+    font-family:var(--sans);
+  }
+  .generate-btn:active{ opacity:.85; }
+
+  #resultLinks{ margin-top:14px; }
+  #resultLinks .portal-grid{ margin-top:0; }
+  #resultLinks .empty-hint{
+    text-align:center;
+    color:#8a9a95;
+    font-size:13px;
+    padding:8px 0;
+  }
+
   footer{
     margin-top:auto;
     padding-top:30px;
@@ -164,26 +221,54 @@
     wybierasz kryteria.
   </p>
 
-  <p class="section-label">Szybko: tereny górskie (działki)</p>
-  <div class="portal-grid">
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/malopolskie" target="_blank" rel="noopener noreferrer">Małopolskie</a>
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/slaskie" target="_blank" rel="noopener noreferrer">Śląskie</a>
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/podkarpackie" target="_blank" rel="noopener noreferrer">Podkarpackie</a>
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/dolnoslaskie" target="_blank" rel="noopener noreferrer">Dolnośląskie</a>
-  </div>
-  <p class="disclaimer" style="margin-top:8px;">Filtr po województwie na Otodom — dalsze kryteria (cena, powierzchnia, konkretna gmina) ustawiasz już na miejscu.</p>
+  <p class="section-label">Ustaw parametry raz</p>
+  <div class="filter-card">
+    <div class="filter-row">
+      <label class="filter-label" for="fType">Rodzaj nieruchomości</label>
+      <select id="fType">
+        <option value="dzialka">Działka</option>
+        <option value="dom">Dom</option>
+      </select>
+    </div>
 
-  <p class="section-label">Bezpośrednio na portalu — działki</p>
-  <div class="portal-grid">
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/cala-polska" target="_blank" rel="noopener noreferrer">Otodom</a>
-    <a class="portal-link" href="https://www.olx.pl/nieruchomosci/dzialki/sprzedaz/" target="_blank" rel="noopener noreferrer">OLX</a>
-    <a class="portal-link" href="https://gratka.pl/nieruchomosci/dzialki" target="_blank" rel="noopener noreferrer">Gratka</a>
-    <a class="portal-link" href="https://www.morizon.pl/dzialki/" target="_blank" rel="noopener noreferrer">Morizon</a>
-    <a class="portal-link" href="https://www.nieruchomosci-online.pl/szukaj.html?3,dzialka,sprzedaz" target="_blank" rel="noopener noreferrer">Nieruchomości-online</a>
-    <a class="portal-link" href="https://www.domiporta.pl/dzialka/sprzedam" target="_blank" rel="noopener noreferrer">Domiporta</a>
-    <a class="portal-link" href="https://adresowo.pl/dzialki" target="_blank" rel="noopener noreferrer">Adresowo</a>
-    <a class="portal-link" href="https://gethome.pl/dzialki/" target="_blank" rel="noopener noreferrer">GetHome</a>
+    <div class="filter-row">
+      <label class="filter-label" for="fRegion">Region (tereny górskie + województwa)</label>
+      <select id="fRegion"></select>
+    </div>
+
+    <div class="filter-row filter-pair">
+      <div>
+        <label class="filter-label" for="fPriceMin">Cena od (zł)</label>
+        <input type="number" id="fPriceMin" inputmode="numeric" placeholder="np. 50000" />
+      </div>
+      <div>
+        <label class="filter-label" for="fPriceMax">Cena do (zł)</label>
+        <input type="number" id="fPriceMax" inputmode="numeric" placeholder="np. 300000" />
+      </div>
+    </div>
+
+    <div class="filter-row filter-pair">
+      <div>
+        <label class="filter-label" for="fAreaMin">Powierzchnia od (m²)</label>
+        <input type="number" id="fAreaMin" inputmode="numeric" placeholder="np. 1000" />
+      </div>
+      <div>
+        <label class="filter-label" for="fAreaMax">Powierzchnia do (m²)</label>
+        <input type="number" id="fAreaMax" inputmode="numeric" placeholder="np. 5000" />
+      </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn">Pokaż linki z tymi filtrami</button>
+
+    <div id="resultLinks">
+      <p class="empty-hint">Ustaw kryteria powyżej i dotknij przycisku — pojawią się gotowe linki do każdego portalu.</p>
+    </div>
   </div>
+  <p class="disclaimer">
+    Otodom i OLX otwierają się z dokładnie tymi filtrami. Pozostałe portale
+    nie udostępniają linków z ceną/powierzchnią w adresie — otwierają się
+    z ustawionym regionem, resztę kryteriów ustawiasz na miejscu.
+  </p>
 
   <p class="section-label">Bezpośrednio na portalu — domy</p>
   <div class="portal-grid">
@@ -194,6 +279,85 @@
   </div>
 
   <footer>Wyszukiwarka Działek</footer>
+
+  <script>
+    // Regiony potwierdzone na żywo (HTTP 200) na Otodom i OLX przed wdrożeniem.
+    // otodom: ścieżka lokalizacji w URL Otodom (województwo[/powiat])
+    // olx: slug miasta/województwa używany przez OLX (inny system niż Otodom)
+    const REGIONS = [
+      { label: "Zakopane / Tatrzański (Tatry)", otodom: "malopolskie/tatrzanski", olx: "zakopane" },
+      { label: "Nowy Targ / Nowotarski (Podhale)", otodom: "malopolskie/nowotarski", olx: "nowy-targ" },
+      { label: "Sucha Beskidzka / Suski (Beskid Żywiecki)", otodom: "malopolskie/suski", olx: "sucha-beskidzka" },
+      { label: "Limanowa / Limanowski (Beskid Wyspowy)", otodom: "malopolskie/limanowski", olx: "limanowa" },
+      { label: "Żywiec / Żywiecki (Beskidy)", otodom: "slaskie/zywiecki", olx: "zywiec" },
+      { label: "Ustrzyki Dolne / Bieszczadzki", otodom: "podkarpackie/bieszczadzki", olx: "ustrzyki-dolne" },
+      { label: "Kłodzko / Kłodzki (Sudety)", otodom: "dolnoslaskie/klodzki", olx: "klodzko" },
+      { label: "— całe województwo —", otodom: null, olx: null, isDivider: true },
+      { label: "Małopolskie (całe)", otodom: "malopolskie", olx: "malopolskie" },
+      { label: "Śląskie (całe)", otodom: "slaskie", olx: "slaskie" },
+      { label: "Podkarpackie (całe)", otodom: "podkarpackie", olx: "podkarpackie" },
+      { label: "Dolnośląskie (całe)", otodom: "dolnoslaskie", olx: "dolnoslaskie" },
+      { label: "Cała Polska", otodom: "cala-polska", olx: "" },
+    ];
+
+    const regionSelect = document.getElementById("fRegion");
+    REGIONS.forEach((r, i) => {
+      const opt = document.createElement("option");
+      if (r.isDivider) {
+        opt.disabled = true;
+        opt.textContent = r.label;
+      } else {
+        opt.value = i;
+        opt.textContent = r.label;
+      }
+      regionSelect.appendChild(opt);
+    });
+
+    function buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax) {
+      const base = `https://www.otodom.pl/pl/wyniki/sprzedaz/${type}/${region.otodom}`;
+      const params = new URLSearchParams();
+      if (priceMin) params.set("priceMin", priceMin);
+      if (priceMax) params.set("priceMax", priceMax);
+      if (areaMin) params.set("areaMin", areaMin);
+      if (areaMax) params.set("areaMax", areaMax);
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
+    }
+
+    function buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax) {
+      const typePath = type === "dzialka" ? "dzialki" : "domy";
+      const regionPath = region.olx ? `${region.olx}/` : "";
+      const base = `https://www.olx.pl/nieruchomosci/${typePath}/sprzedaz/${regionPath}`;
+      const params = new URLSearchParams();
+      if (priceMin) params.set("search[filter_float_price:from]", priceMin);
+      if (priceMax) params.set("search[filter_float_price:to]", priceMax);
+      if (areaMin) params.set("search[filter_float_m:from]", areaMin);
+      if (areaMax) params.set("search[filter_float_m:to]", areaMax);
+      const qs = params.toString();
+      return qs ? `${base}?${qs}` : base;
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", () => {
+      const type = document.getElementById("fType").value;
+      const region = REGIONS[parseInt(regionSelect.value || "0", 10)];
+      const priceMin = document.getElementById("fPriceMin").value.trim();
+      const priceMax = document.getElementById("fPriceMax").value.trim();
+      const areaMin = document.getElementById("fAreaMin").value.trim();
+      const areaMax = document.getElementById("fAreaMax").value.trim();
+
+      const otodomUrl = buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax);
+      const olxUrl = buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax);
+
+      const container = document.getElementById("resultLinks");
+      container.innerHTML = `
+        <p class="filter-label" style="margin-top:6px;">Z Twoimi filtrami:</p>
+        <div class="portal-grid" style="grid-template-columns:1fr;">
+          <a class="portal-link" href="${otodomUrl}" target="_blank" rel="noopener noreferrer">Otodom — otwórz z filtrami →</a>
+          <a class="portal-link" href="${olxUrl}" target="_blank" rel="noopener noreferrer">OLX — otwórz z filtrami →</a>
+        </div>
+      `;
+    });
+  </script>
 
 </body>
 </html>
