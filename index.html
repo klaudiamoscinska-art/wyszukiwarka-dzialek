@@ -188,6 +188,63 @@
     padding:8px 0;
   }
 
+  .save-btn{
+    padding:11px 14px;
+    background:#eef2f0;
+    color:var(--survey);
+    border:1.5px solid var(--survey);
+    border-radius:10px;
+    font-weight:700;
+    font-size:14px;
+    font-family:var(--sans);
+    white-space:nowrap;
+  }
+  .save-btn:active{ background:var(--survey); color:#fff; }
+
+  #savedSearchesCard .empty-hint{
+    text-align:center;
+    color:#8a9a95;
+    font-size:13px;
+    padding:4px 0;
+  }
+  .saved-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:11px 4px;
+    border-bottom:1px solid var(--line);
+  }
+  .saved-item:last-child{ border-bottom:none; }
+  .saved-item-btn{
+    flex:1;
+    text-align:left;
+    background:none;
+    border:none;
+    padding:0;
+    font-family:var(--sans);
+  }
+  .saved-item-name{
+    display:block;
+    font-weight:700;
+    font-size:14.5px;
+    color:var(--ink);
+  }
+  .saved-item-sub{
+    display:block;
+    font-size:12px;
+    color:#5b6d67;
+    margin-top:2px;
+  }
+  .saved-item-delete{
+    flex:0 0 auto;
+    background:none;
+    border:none;
+    color:#a3231f;
+    font-size:18px;
+    padding:4px 8px;
+  }
+
   footer{
     margin-top:auto;
     padding-top:30px;
@@ -258,12 +315,34 @@
       </div>
     </div>
 
+    <div class="filter-row filter-pair">
+      <div>
+        <input type="text" id="saveSearchName" placeholder="Nazwa (np. Zakopane tanie)" />
+      </div>
+      <div style="flex:0 0 auto;">
+        <button class="save-btn" id="saveSearchBtn" type="button">💾 Zapisz</button>
+      </div>
+    </div>
+
     <button class="generate-btn" id="generateBtn">Pokaż linki z tymi filtrami</button>
 
     <div id="resultLinks">
       <p class="empty-hint">Ustaw kryteria powyżej i dotknij przycisku — pojawią się gotowe linki do każdego portalu.</p>
     </div>
   </div>
+
+  <p class="section-label">Twoje zapisane wyszukiwania</p>
+  <div class="filter-card" id="savedSearchesCard">
+    <p class="empty-hint" id="savedEmptyHint">Nie masz jeszcze żadnych zapisanych wyszukiwań — ustaw filtry powyżej, nadaj nazwę i dotknij „Zapisz".</p>
+    <div id="savedSearchesList"></div>
+  </div>
+  <p class="disclaimer">
+    Zapisane tutaj wyszukiwania to Twoje skróty w tej appce (trzymane tylko
+    na tym urządzeniu, w przeglądarce) — nie wysyłają powiadomień. Żeby
+    dostawać e-maile o nowych ogłoszeniach, otwórz link do Otodom lub OLX i
+    na tamtej stronie dotknij przycisku „Zapisz wyszukiwanie" / „Ustaw alert"
+    (wymaga darmowego konta na danym portalu).
+  </p>
   <p class="disclaimer">
     OLX otwiera się od razu posortowany od najnowszych ogłoszeń (potwierdzone
     na żywo). Otodom nie udostępnia sortowania przez adres URL — trzeba
@@ -425,13 +504,20 @@
         : `https://gethome.pl/${typePath}/`;
     }
 
-    document.getElementById("generateBtn").addEventListener("click", () => {
-      const type = document.getElementById("fType").value;
-      const region = REGIONS[parseInt(regionSelect.value, 10)];
-      const priceMin = document.getElementById("fPriceMin").value.trim();
-      const priceMax = document.getElementById("fPriceMax").value.trim();
-      const areaMin = document.getElementById("fAreaMin").value.trim();
-      const areaMax = document.getElementById("fAreaMax").value.trim();
+    function getCurrentFilters() {
+      return {
+        type: document.getElementById("fType").value,
+        regionIndex: parseInt(regionSelect.value, 10),
+        priceMin: document.getElementById("fPriceMin").value.trim(),
+        priceMax: document.getElementById("fPriceMax").value.trim(),
+        areaMin: document.getElementById("fAreaMin").value.trim(),
+        areaMax: document.getElementById("fAreaMax").value.trim(),
+      };
+    }
+
+    function renderLinks(filters) {
+      const region = REGIONS[filters.regionIndex];
+      const { type, priceMin, priceMax, areaMin, areaMax } = filters;
 
       const otodomUrl = buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax);
       const olxUrl = buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax);
@@ -450,7 +536,113 @@
           <a class="portal-link" href="${getHomeUrl}" target="_blank" rel="noopener noreferrer">GetHome — województwo →</a>
         </div>
       `;
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", () => {
+      renderLinks(getCurrentFilters());
     });
+
+    // ---------- Zapisane wyszukiwania (localStorage, tylko na tym urządzeniu) ----------
+    const STORAGE_KEY = "wyszukiwarkaDzialekSavedSearches";
+
+    function loadSavedSearches() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function persistSavedSearches(list) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      } catch (e) {
+        // localStorage niedostępny (np. tryb prywatny) — po prostu nie zapiszemy
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function renderSavedSearchesList() {
+      const list = loadSavedSearches();
+      const listEl = document.getElementById("savedSearchesList");
+      const emptyHint = document.getElementById("savedEmptyHint");
+
+      if (list.length === 0) {
+        emptyHint.style.display = "block";
+        listEl.innerHTML = "";
+        return;
+      }
+      emptyHint.style.display = "none";
+
+      listEl.innerHTML = list
+        .map((s, i) => {
+          const region = REGIONS[s.regionIndex];
+          const regionLabel = region ? region.label : "?";
+          const typeLabel = s.type === "dzialka" ? "Działka" : "Dom";
+          const priceLabel = s.priceMin || s.priceMax
+            ? ` · ${s.priceMin || "0"}–${s.priceMax || "∞"} zł`
+            : "";
+          const areaLabel = s.areaMin || s.areaMax
+            ? ` · ${s.areaMin || "0"}–${s.areaMax || "∞"} m²`
+            : "";
+          return `
+            <div class="saved-item">
+              <button class="saved-item-btn" data-idx="${i}">
+                <span class="saved-item-name">${escapeHtml(s.name)}</span>
+                <span class="saved-item-sub">${typeLabel} · ${escapeHtml(regionLabel)}${priceLabel}${areaLabel}</span>
+              </button>
+              <button class="saved-item-delete" data-idx="${i}" aria-label="Usuń">✕</button>
+            </div>`;
+        })
+        .join("");
+
+      listEl.querySelectorAll(".saved-item-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const s = list[parseInt(btn.getAttribute("data-idx"), 10)];
+          document.getElementById("fType").value = s.type;
+          regionSelect.value = s.regionIndex;
+          document.getElementById("fPriceMin").value = s.priceMin || "";
+          document.getElementById("fPriceMax").value = s.priceMax || "";
+          document.getElementById("fAreaMin").value = s.areaMin || "";
+          document.getElementById("fAreaMax").value = s.areaMax || "";
+          renderLinks(s);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      });
+
+      listEl.querySelectorAll(".saved-item-delete").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.getAttribute("data-idx"), 10);
+          const current = loadSavedSearches();
+          current.splice(idx, 1);
+          persistSavedSearches(current);
+          renderSavedSearchesList();
+        });
+      });
+    }
+
+    document.getElementById("saveSearchBtn").addEventListener("click", () => {
+      const nameInput = document.getElementById("saveSearchName");
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.focus();
+        return;
+      }
+      const filters = getCurrentFilters();
+      const list = loadSavedSearches();
+      list.push({ name, ...filters });
+      persistSavedSearches(list);
+      nameInput.value = "";
+      renderSavedSearchesList();
+    });
+
+    renderSavedSearchesList();
   </script>
 
 </body>
