@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Wyszukiwarka Działek</title>
+
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0f5c4f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Wyszukiwarka Działek" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon.png" />
+
+<style>
+  :root{
+    --ink:#1b2b28;
+    --paper:#f4f7f5;
+    --line:#c7d3cd;
+    --survey:#0f5c4f;
+    --mono:'JetBrains Mono','SFMono-Regular',Consolas,monospace;
+    --sans:'Inter',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  body{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    min-height:100dvh;
+    padding:24px 20px 40px;
+  }
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--survey);
+    margin:8px 0 4px;
+    text-align:center;
+  }
+  h1{
+    font-size:22px;
+    text-align:center;
+    margin:0 0 6px;
+  }
+  .intro{
+    text-align:center;
+    color:#5b6d67;
+    font-size:14.5px;
+    line-height:1.5;
+    max-width:420px;
+    margin:0 auto 28px;
+  }
+
+  .icon-badge{
+    width:72px; height:72px;
+    background:var(--survey);
+    border-radius:20px;
+    margin:12px auto 4px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .icon-badge img{ width:44px; height:44px; }
+
+  .primary-btn{
+    display:block;
+    width:100%;
+    max-width:420px;
+    margin:0 auto 14px;
+    padding:18px 20px;
+    background:var(--survey);
+    color:#fff;
+    text-align:center;
+    text-decoration:none;
+    border-radius:14px;
+    font-weight:700;
+    font-size:16px;
+  }
+  .primary-btn:active{ opacity:.85; }
+  .primary-sub{
+    display:block;
+    font-weight:400;
+    font-size:12.5px;
+    opacity:.85;
+    margin-top:4px;
+  }
+
+  .disclaimer{
+    max-width:420px;
+    margin:8px auto 28px;
+    font-size:12px;
+    color:#8a9a95;
+    text-align:center;
+    line-height:1.5;
+  }
+
+  .portal-grid{
+    max-width:420px;
+    margin:0 auto;
+    width:100%;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .portal-link{
+    display:block;
+    text-align:center;
+    padding:13px 8px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    text-decoration:none;
+    color:var(--ink);
+    font-weight:600;
+    font-size:14px;
+  }
+  .portal-link:active{ background:#eef2f0; }
+
+  .section-label{
+    max-width:420px;
+    margin:26px auto 10px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:#8a9a95;
+  }
+
+  footer{
+    margin-top:auto;
+    padding-top:30px;
+    text-align:center;
+    font-size:11px;
+    color:#8a9a95;
+  }
+</style>
+</head>
+<body>
+
+  <div class="icon-badge">
+    <img src="icons/icon-192.png" alt="" />
+  </div>
+  <p class="eyebrow">Nieruchomości</p>
+  <h1>Wyszukiwarka Działek</h1>
+  <p class="intro">
+    Jedno miejsce, wiele portali. Ustaw lokalizację, cenę i powierzchnię
+    samodzielnie — wyniki pochodzą jednocześnie z Otodom, OLX, Gratki,
+    Morizon i innych.
+  </p>
+
+  <a class="primary-btn" href="https://mieszkania.trovit.pl/dzialka" target="_blank" rel="noopener noreferrer">
+    Otwórz ogólną wyszukiwarkę
+    <span class="primary-sub">Trovit — wszystkie portale naraz</span>
+  </a>
+
+  <p class="disclaimer">
+    To narzędzie nie sprawdza, czy konkretna działka jest na sprzedaż —
+    otwiera zewnętrzną wyszukiwarkę ofert rynkowych, w której samodzielnie
+    wybierasz kryteria.
+  </p>
+
+  <p class="section-label">Albo bezpośrednio na jednym portalu</p>
+  <div class="portal-grid">
+    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dzialka/cala-polska" target="_blank" rel="noopener noreferrer">Otodom</a>
+    <a class="portal-link" href="https://www.olx.pl/nieruchomosci/dzialki/sprzedaz/" target="_blank" rel="noopener noreferrer">OLX</a>
+    <a class="portal-link" href="https://gratka.pl/nieruchomosci/dzialki" target="_blank" rel="noopener noreferrer">Gratka</a>
+    <a class="portal-link" href="https://www.morizon.pl/dzialki/" target="_blank" rel="noopener noreferrer">Morizon</a>
+  </div>
+
+  <footer>Wyszukiwarka Działek</footer>
+
+</body>
+</html>
