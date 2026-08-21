@@ -265,9 +265,10 @@
     </div>
   </div>
   <p class="disclaimer">
-    Otodom i OLX otwierają się z dokładnie tymi filtrami. Pozostałe portale
-    nie udostępniają linków z ceną/powierzchnią w adresie — otwierają się
-    z ustawionym regionem, resztę kryteriów ustawiasz na miejscu.
+    Wszystkie 5 linków otwiera się z wybranym regionem. Cenę i powierzchnię
+    da się dołączyć do adresu tylko dla Otodom i OLX — pozostałe portale
+    (Domiporta, Nieruchomości-online, GetHome) tego nie udostępniają, więc
+    te kryteria ustawiasz na miejscu.
   </p>
 
   <p class="section-label">Bezpośrednio na portalu — domy</p>
@@ -281,18 +282,65 @@
   <footer>Wyszukiwarka Działek</footer>
 
   <script>
-    // Regiony potwierdzone na żywo (HTTP 200) na Otodom i OLX przed wdrożeniem.
-    // otodom: ścieżka lokalizacji w URL Otodom (województwo[/powiat])
-    // olx: slug miasta/województwa używany przez OLX (inny system niż Otodom)
+    // Każda miejscowość niżej sprawdzona na żywo (HTTP 200) na Otodom, OLX,
+    // Domiporta i Nieruchomości-online przed wdrożeniem — niektóre gminy
+    // wymagają na Otodom przedrostka "gmina-miejska--" / "gmina-wiejska--"
+    // dla odróżnienia od miasta o tej samej nazwie (np. Nowy Targ, Jordanów).
+    // Kilka miejscowości uzdrowiskowych w Sudetach (Duszniki-Zdrój,
+    // Kudowa-Zdrój, Polanica-Zdrój, Lądek-Zdrój) nie ma rozpoznawalnego
+    // sluga na Otodom — pominięte, żeby nie dawać złych linków.
     const REGIONS = [
-      { label: "Zakopane / Tatrzański (Tatry)", otodom: "malopolskie/tatrzanski", olx: "zakopane" },
-      { label: "Nowy Targ / Nowotarski (Podhale)", otodom: "malopolskie/nowotarski", olx: "nowy-targ" },
-      { label: "Sucha Beskidzka / Suski (Beskid Żywiecki)", otodom: "malopolskie/suski", olx: "sucha-beskidzka" },
-      { label: "Limanowa / Limanowski (Beskid Wyspowy)", otodom: "malopolskie/limanowski", olx: "limanowa" },
-      { label: "Żywiec / Żywiecki (Beskidy)", otodom: "slaskie/zywiecki", olx: "zywiec" },
-      { label: "Ustrzyki Dolne / Bieszczadzki", otodom: "podkarpackie/bieszczadzki", olx: "ustrzyki-dolne" },
-      { label: "Kłodzko / Kłodzki (Sudety)", otodom: "dolnoslaskie/klodzki", olx: "klodzko" },
-      { label: "— całe województwo —", otodom: null, olx: null, isDivider: true },
+      { label: "— Tatry (pow. tatrzański) —", isDivider: true },
+      { label: "Zakopane", otodom: "malopolskie/tatrzanski/zakopane", olx: "zakopane" },
+      { label: "Poronin", otodom: "malopolskie/tatrzanski/poronin", olx: "poronin" },
+      { label: "Kościelisko", otodom: "malopolskie/tatrzanski/koscielisko", olx: "koscielisko" },
+      { label: "Bukowina Tatrzańska", otodom: "malopolskie/tatrzanski/bukowina-tatrzanska", olx: "bukowina-tatrzanska" },
+      { label: "Biały Dunajec", otodom: "malopolskie/tatrzanski/bialy-dunajec", olx: "bialy-dunajec" },
+
+      { label: "— Podhale (pow. nowotarski) —", isDivider: true },
+      { label: "Nowy Targ", otodom: "malopolskie/nowotarski/gmina-miejska--nowy-targ", olx: "nowy-targ" },
+      { label: "Czarny Dunajec", otodom: "malopolskie/nowotarski/czarny-dunajec", olx: "czarny-dunajec" },
+      { label: "Szaflary", otodom: "malopolskie/nowotarski/szaflary", olx: "szaflary" },
+      { label: "Czorsztyn", otodom: "malopolskie/nowotarski/czorsztyn", olx: "czorsztyn" },
+      { label: "Ochotnica Dolna", otodom: "malopolskie/nowotarski/ochotnica-dolna", olx: "ochotnica-dolna" },
+      { label: "Szczawnica", otodom: "malopolskie/nowotarski/szczawnica", olx: "szczawnica" },
+      { label: "Krościenko nad Dunajcem", otodom: "malopolskie/nowotarski/kroscienko-nad-dunajcem", olx: "kroscienko-nad-dunajcem" },
+
+      { label: "— Beskid Żywiecki / Mały (pow. suski) —", isDivider: true },
+      { label: "Sucha Beskidzka", otodom: "malopolskie/suski/sucha-beskidzka", olx: "sucha-beskidzka" },
+      { label: "Zawoja", otodom: "malopolskie/suski/zawoja", olx: "zawoja" },
+      { label: "Stryszawa", otodom: "malopolskie/suski/stryszawa", olx: "stryszawa" },
+      { label: "Jordanów", otodom: "malopolskie/suski/gmina-miejska--jordanow", olx: "jordanow" },
+      { label: "Maków Podhalański", otodom: "malopolskie/suski/makow-podhalanski", olx: "makow-podhalanski" },
+      { label: "Zembrzyce", otodom: "malopolskie/suski/zembrzyce", olx: "zembrzyce" },
+
+      { label: "— Beskidy (pow. żywiecki) —", isDivider: true },
+      { label: "Żywiec", otodom: "slaskie/zywiecki/zywiec", olx: "zywiec" },
+      { label: "Węgierska Górka", otodom: "slaskie/zywiecki/wegierska-gorka", olx: "wegierska-gorka" },
+      { label: "Milówka", otodom: "slaskie/zywiecki/milowka", olx: "milowka" },
+      { label: "Rajcza", otodom: "slaskie/zywiecki/rajcza", olx: "rajcza" },
+      { label: "Ujsoły", otodom: "slaskie/zywiecki/ujsoly", olx: "ujsoly" },
+      { label: "Łodygowice", otodom: "slaskie/zywiecki/lodygowice", olx: "lodygowice" },
+
+      { label: "— Beskid Wyspowy (pow. limanowski) —", isDivider: true },
+      { label: "Limanowa", otodom: "malopolskie/limanowski/gmina-miejska--limanowa", olx: "limanowa" },
+      { label: "Mszana Dolna", otodom: "malopolskie/limanowski/gmina-miejska--mszana-dolna", olx: "mszana-dolna" },
+      { label: "Kamienica", otodom: "malopolskie/limanowski/kamienica", olx: "kamienica" },
+      { label: "Tymbark", otodom: "malopolskie/limanowski/tymbark", olx: "tymbark" },
+      { label: "Dobra", otodom: "malopolskie/limanowski/dobra", olx: "dobra" },
+
+      { label: "— Bieszczady (pow. bieszczadzki) —", isDivider: true },
+      { label: "Ustrzyki Dolne", otodom: "podkarpackie/bieszczadzki/ustrzyki-dolne", olx: "ustrzyki-dolne" },
+      { label: "Lutowiska", otodom: "podkarpackie/bieszczadzki/lutowiska", olx: "lutowiska" },
+      { label: "Czarna", otodom: "podkarpackie/bieszczadzki/czarna", olx: "czarna" },
+
+      { label: "— Sudety (pow. kłodzki) —", isDivider: true },
+      { label: "Kłodzko", otodom: "dolnoslaskie/klodzki/gmina-miejska--klodzko", olx: "klodzko" },
+      { label: "Szczytna", otodom: "dolnoslaskie/klodzki/szczytna", olx: "szczytna" },
+      { label: "Stronie Śląskie", otodom: "dolnoslaskie/klodzki/stronie-slaskie", olx: "stronie-slaskie" },
+      { label: "Bystrzyca Kłodzka", otodom: "dolnoslaskie/klodzki/bystrzyca-klodzka", olx: "bystrzyca-klodzka" },
+
+      { label: "— całe województwo —", isDivider: true },
       { label: "Małopolskie (całe)", otodom: "malopolskie", olx: "malopolskie" },
       { label: "Śląskie (całe)", otodom: "slaskie", olx: "slaskie" },
       { label: "Podkarpackie (całe)", otodom: "podkarpackie", olx: "podkarpackie" },
@@ -337,9 +385,35 @@
       return qs ? `${base}?${qs}` : base;
     }
 
+    // Domiporta i Nieruchomości-online: potwierdzone na żywo, że przyjmują
+    // te same slugi miast co OLX. Nie udostępniają ceny/powierzchni w adresie.
+    function buildDomiportaUrl(type, region) {
+      const typePath = type === "dzialka" ? "dzialke" : "dom";
+      const city = region.olx || "";
+      return city
+        ? `https://www.domiporta.pl/${typePath}/sprzedam/${city}`
+        : `https://www.domiporta.pl/${typePath}/sprzedam`;
+    }
+
+    function buildNieruchomosciOnlineUrl(type, region) {
+      const typePath = type === "dzialka" ? "dzialki" : "domy";
+      const city = region.olx || "www";
+      return `https://${city}.nieruchomosci-online.pl/${typePath},sprzedaz/`;
+    }
+
+    // GetHome obsługuje tylko poziom całego województwa, nie konkretnej gminy
+    // — wyciągamy województwo z pierwszego segmentu ścieżki Otodom.
+    function buildGetHomeUrl(type, region) {
+      const typePath = type === "dzialka" ? "dzialki" : "domy";
+      const voivodeship = region.otodom === "cala-polska" ? "" : region.otodom.split("/")[0];
+      return voivodeship
+        ? `https://gethome.pl/${typePath}/${voivodeship}/`
+        : `https://gethome.pl/${typePath}/`;
+    }
+
     document.getElementById("generateBtn").addEventListener("click", () => {
       const type = document.getElementById("fType").value;
-      const region = REGIONS[parseInt(regionSelect.value || "0", 10)];
+      const region = REGIONS[parseInt(regionSelect.value, 10)];
       const priceMin = document.getElementById("fPriceMin").value.trim();
       const priceMax = document.getElementById("fPriceMax").value.trim();
       const areaMin = document.getElementById("fAreaMin").value.trim();
@@ -347,13 +421,19 @@
 
       const otodomUrl = buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax);
       const olxUrl = buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax);
+      const domiportaUrl = buildDomiportaUrl(type, region);
+      const nieruchomosciOnlineUrl = buildNieruchomosciOnlineUrl(type, region);
+      const getHomeUrl = buildGetHomeUrl(type, region);
 
       const container = document.getElementById("resultLinks");
       container.innerHTML = `
-        <p class="filter-label" style="margin-top:6px;">Z Twoimi filtrami:</p>
+        <p class="filter-label" style="margin-top:6px;">Z filtrem regionu (Otodom i OLX też z ceną/powierzchnią):</p>
         <div class="portal-grid" style="grid-template-columns:1fr;">
-          <a class="portal-link" href="${otodomUrl}" target="_blank" rel="noopener noreferrer">Otodom — otwórz z filtrami →</a>
-          <a class="portal-link" href="${olxUrl}" target="_blank" rel="noopener noreferrer">OLX — otwórz z filtrami →</a>
+          <a class="portal-link" href="${otodomUrl}" target="_blank" rel="noopener noreferrer">Otodom — z filtrami →</a>
+          <a class="portal-link" href="${olxUrl}" target="_blank" rel="noopener noreferrer">OLX — z filtrami →</a>
+          <a class="portal-link" href="${domiportaUrl}" target="_blank" rel="noopener noreferrer">Domiporta — region →</a>
+          <a class="portal-link" href="${nieruchomosciOnlineUrl}" target="_blank" rel="noopener noreferrer">Nieruchomości-online — region →</a>
+          <a class="portal-link" href="${getHomeUrl}" target="_blank" rel="noopener noreferrer">GetHome — województwo →</a>
         </div>
       `;
     });
