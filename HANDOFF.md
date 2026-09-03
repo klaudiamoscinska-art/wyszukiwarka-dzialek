@@ -345,7 +345,9 @@ README.md
   prawdziwe alerty e-mail
 - Link-out do ogólnej wyszukiwarki **Trovit** — ale **NIE agreguje
   Otodom/OLX** (sprawdzone: to metawyszukiwarka mniejszych/średnich
-  portali), appka to teraz jasno komunikuje
+  portali). Od 2026-09-02 disclaimer pod przyciskiem Trovit mówi to
+  wprost ("nie obejmuje Otodom ani OLX") — wcześniej było to tylko
+  pośrednio sugerowane ogólnym opisem
 - **Service worker (od 2026-09-01)**: appka jest teraz instalowalna z
   działającym trybem offline dla powłoki strony (index.html/manifest/ikony)
   — wcześniej był tylko `manifest.json` bez service workera. Ten sam wzorzec
