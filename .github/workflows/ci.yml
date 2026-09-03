@@ -40,4 +40,5 @@ jobs:
         run: node --check service-worker.js
 
       - name: Waliduj manifest.json
-        run: node -e 'JSON.parse(require("fs").readFileSync("manifest.json", "utf8")); console.log("OK: manifest.json jest poprawnym JSON-em.");'
+        run: |
+          node -e 'JSON.parse(require("fs").readFileSync("manifest.json", "utf8")); console.log("OK: manifest.json jest poprawnym JSON-em.");'
