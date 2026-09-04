@@ -252,6 +252,19 @@
     font-size:11px;
     color:#8a9a95;
   }
+
+  /* ---------- Większe ekrany: trochę więcej oddechu, ta sama kolumna ---------- */
+  @media (min-width:700px){
+    .intro,
+    .primary-btn,
+    .disclaimer,
+    .portal-grid,
+    .section-label,
+    .filter-card{
+      max-width:520px;
+    }
+    body{ padding-top:40px; }
+  }
 </style>
 </head>
 <body>
@@ -262,9 +275,9 @@
   <p class="eyebrow">Nieruchomości</p>
   <h1>Wyszukiwarka Działek</h1>
   <p class="intro">
-    Jedno miejsce, wiele portali. Ustaw lokalizację, cenę i powierzchnię
-    samodzielnie — wyniki pochodzą jednocześnie z Otodom, OLX, Gratki,
-    Morizon i innych.
+    Jedno miejsce, wiele portali. Ustaw region, cenę i powierzchnię — dostaniesz
+    gotowe linki z filtrami do Otodom, OLX, Domiporty, Nieruchomości-online
+    i GetHome.
   </p>
 
   <a class="primary-btn" href="https://mieszkania.trovit.pl/dzialka" target="_blank" rel="noopener noreferrer">
@@ -275,7 +288,9 @@
   <p class="disclaimer">
     To narzędzie nie sprawdza, czy konkretna działka jest na sprzedaż —
     otwiera zewnętrzną wyszukiwarkę ofert rynkowych, w której samodzielnie
-    wybierasz kryteria.
+    wybierasz kryteria. Trovit to metawyszukiwarka mniejszych/średnich
+    portali — <strong>nie obejmuje Otodom ani OLX</strong> (te dwa
+    sprawdzisz osobno w filtrach poniżej).
   </p>
 
   <p class="section-label">Ustaw parametry raz</p>
@@ -349,14 +364,6 @@
     ustawić je ręcznie na miejscu (przycisk "Sortuj" na górze listy).
     Cenę/powierzchnię da się dołączyć do adresu tylko dla Otodom i OLX.
   </p>
-
-  <p class="section-label">Bezpośrednio na portalu — domy</p>
-  <div class="portal-grid">
-    <a class="portal-link" href="https://www.otodom.pl/pl/wyniki/sprzedaz/dom/cala-polska" target="_blank" rel="noopener noreferrer">Otodom</a>
-    <a class="portal-link" href="https://www.olx.pl/nieruchomosci/domy/sprzedaz/" target="_blank" rel="noopener noreferrer">OLX</a>
-    <a class="portal-link" href="https://gratka.pl/nieruchomosci/domy" target="_blank" rel="noopener noreferrer">Gratka</a>
-    <a class="portal-link" href="https://www.morizon.pl/domy/" target="_blank" rel="noopener noreferrer">Morizon</a>
-  </div>
 
   <footer>Wyszukiwarka Działek</footer>
 
@@ -451,58 +458,88 @@
       regionSelect.appendChild(opt);
     });
 
-    function buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax) {
-      const base = `https://www.otodom.pl/pl/wyniki/sprzedaz/${type}/${region.otodom}`;
-      const params = new URLSearchParams();
-      if (priceMin) params.set("priceMin", priceMin);
-      if (priceMax) params.set("priceMax", priceMax);
-      if (areaMin) params.set("areaMin", areaMin);
-      if (areaMax) params.set("areaMax", areaMax);
-      const qs = params.toString();
-      return qs ? `${base}?${qs}` : base;
-    }
-
-    function buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax) {
-      const typePath = type === "dzialka" ? "dzialki" : "domy";
-      const regionPath = region.olx ? `${region.olx}/` : "";
-      const base = `https://www.olx.pl/nieruchomosci/${typePath}/sprzedaz/${regionPath}`;
-      const params = new URLSearchParams();
-      // Potwierdzone na żywo: OLX faktycznie stosuje ten parametr (serwer
-      // zwraca stronę z opcją "Najnowsze" już zaznaczoną w rozwijanej liście).
-      params.set("search[order]", "created_at:desc");
-      if (priceMin) params.set("search[filter_float_price:from]", priceMin);
-      if (priceMax) params.set("search[filter_float_price:to]", priceMax);
-      if (areaMin) params.set("search[filter_float_m:from]", areaMin);
-      if (areaMax) params.set("search[filter_float_m:to]", areaMax);
-      const qs = params.toString();
-      return qs ? `${base}?${qs}` : base;
-    }
-
-    // Domiporta i Nieruchomości-online: potwierdzone na żywo, że przyjmują
-    // te same slugi miast co OLX. Nie udostępniają ceny/powierzchni w adresie.
-    function buildDomiportaUrl(type, region) {
-      const typePath = type === "dzialka" ? "dzialke" : "dom";
-      const city = region.olx || "";
-      return city
-        ? `https://www.domiporta.pl/${typePath}/sprzedam/${city}`
-        : `https://www.domiporta.pl/${typePath}/sprzedam`;
-    }
-
-    function buildNieruchomosciOnlineUrl(type, region) {
-      const typePath = type === "dzialka" ? "dzialki" : "domy";
-      const city = region.olx || "www";
-      return `https://${city}.nieruchomosci-online.pl/${typePath},sprzedaz/`;
-    }
-
-    // GetHome obsługuje tylko poziom całego województwa, nie konkretnej gminy
-    // — wyciągamy województwo z pierwszego segmentu ścieżki Otodom.
-    function buildGetHomeUrl(type, region) {
-      const typePath = type === "dzialka" ? "dzialki" : "domy";
-      const voivodeship = region.otodom === "cala-polska" ? "" : region.otodom.split("/")[0];
-      return voivodeship
-        ? `https://gethome.pl/${typePath}/${voivodeship}/`
-        : `https://gethome.pl/${typePath}/`;
-    }
+    // ---------- Konfiguracja portali ----------
+    // Jedno źródło prawdy dla wszystkich portali: żeby dodać kolejny portal,
+    // dopisz obiekt {id, label, buildUrl(filters) => url} do tej tablicy —
+    // renderLinks() poniżej renderuje karty z tej listy automatycznie, nic
+    // więcej nie trzeba zmieniać.
+    //
+    // Każdy buildUrl dostaje cały obiekt filters ({type, region, priceMin,
+    // priceMax, areaMin, areaMax}) i zwraca gotowy string URL. Dokładny
+    // format zapytania każdego portalu (slugi, nazwy parametrów, domyślne
+    // sortowanie) był sprawdzony na żywo — patrz komentarze przy każdym.
+    const PORTALS = [
+      {
+        id: "otodom",
+        label: "Otodom — z filtrami →",
+        buildUrl({ type, region, priceMin, priceMax, areaMin, areaMax }) {
+          const base = `https://www.otodom.pl/pl/wyniki/sprzedaz/${type}/${region.otodom}`;
+          const params = new URLSearchParams();
+          if (priceMin) params.set("priceMin", priceMin);
+          if (priceMax) params.set("priceMax", priceMax);
+          if (areaMin) params.set("areaMin", areaMin);
+          if (areaMax) params.set("areaMax", areaMax);
+          const qs = params.toString();
+          return qs ? `${base}?${qs}` : base;
+        },
+      },
+      {
+        id: "olx",
+        label: "OLX — z filtrami →",
+        buildUrl({ type, region, priceMin, priceMax, areaMin, areaMax }) {
+          const typePath = type === "dzialka" ? "dzialki" : "domy";
+          const regionPath = region.olx ? `${region.olx}/` : "";
+          const base = `https://www.olx.pl/nieruchomosci/${typePath}/sprzedaz/${regionPath}`;
+          const params = new URLSearchParams();
+          // Potwierdzone na żywo: OLX faktycznie stosuje ten parametr (serwer
+          // zwraca stronę z opcją "Najnowsze" już zaznaczoną w rozwijanej liście).
+          params.set("search[order]", "created_at:desc");
+          if (priceMin) params.set("search[filter_float_price:from]", priceMin);
+          if (priceMax) params.set("search[filter_float_price:to]", priceMax);
+          if (areaMin) params.set("search[filter_float_m:from]", areaMin);
+          if (areaMax) params.set("search[filter_float_m:to]", areaMax);
+          const qs = params.toString();
+          return qs ? `${base}?${qs}` : base;
+        },
+      },
+      {
+        // Potwierdzone na żywo, że przyjmuje te same slugi miast co OLX.
+        // Nie udostępnia ceny/powierzchni w adresie.
+        id: "domiporta",
+        label: "Domiporta — region →",
+        buildUrl({ type, region }) {
+          const typePath = type === "dzialka" ? "dzialke" : "dom";
+          const city = region.olx || "";
+          return city
+            ? `https://www.domiporta.pl/${typePath}/sprzedam/${city}`
+            : `https://www.domiporta.pl/${typePath}/sprzedam`;
+        },
+      },
+      {
+        // Potwierdzone na żywo, że przyjmuje te same slugi miast co OLX
+        // (jako subdomena). Nie udostępnia ceny/powierzchni w adresie.
+        id: "nieruchomosciOnline",
+        label: "Nieruchomości-online — region →",
+        buildUrl({ type, region }) {
+          const typePath = type === "dzialka" ? "dzialki" : "domy";
+          const city = region.olx || "www";
+          return `https://${city}.nieruchomosci-online.pl/${typePath},sprzedaz/`;
+        },
+      },
+      {
+        // GetHome obsługuje tylko poziom całego województwa, nie konkretnej
+        // gminy — wyciągamy województwo z pierwszego segmentu ścieżki Otodom.
+        id: "getHome",
+        label: "GetHome — województwo →",
+        buildUrl({ type, region }) {
+          const typePath = type === "dzialka" ? "dzialki" : "domy";
+          const voivodeship = region.otodom === "cala-polska" ? "" : region.otodom.split("/")[0];
+          return voivodeship
+            ? `https://gethome.pl/${typePath}/${voivodeship}/`
+            : `https://gethome.pl/${typePath}/`;
+        },
+      },
+    ];
 
     function getCurrentFilters() {
       return {
@@ -517,23 +554,18 @@
 
     function renderLinks(filters) {
       const region = REGIONS[filters.regionIndex];
-      const { type, priceMin, priceMax, areaMin, areaMax } = filters;
+      const buildFilters = { ...filters, region };
 
-      const otodomUrl = buildOtodomUrl(type, region, priceMin, priceMax, areaMin, areaMax);
-      const olxUrl = buildOlxUrl(type, region, priceMin, priceMax, areaMin, areaMax);
-      const domiportaUrl = buildDomiportaUrl(type, region);
-      const nieruchomosciOnlineUrl = buildNieruchomosciOnlineUrl(type, region);
-      const getHomeUrl = buildGetHomeUrl(type, region);
+      const cardsHtml = PORTALS.map((portal) => {
+        const url = portal.buildUrl(buildFilters);
+        return `<a class="portal-link" href="${url}" target="_blank" rel="noopener noreferrer">${portal.label}</a>`;
+      }).join("");
 
       const container = document.getElementById("resultLinks");
       container.innerHTML = `
         <p class="filter-label" style="margin-top:6px;">Z filtrem regionu (Otodom i OLX też z ceną/powierzchnią):</p>
         <div class="portal-grid" style="grid-template-columns:1fr;">
-          <a class="portal-link" href="${otodomUrl}" target="_blank" rel="noopener noreferrer">Otodom — z filtrami →</a>
-          <a class="portal-link" href="${olxUrl}" target="_blank" rel="noopener noreferrer">OLX — z filtrami →</a>
-          <a class="portal-link" href="${domiportaUrl}" target="_blank" rel="noopener noreferrer">Domiporta — region →</a>
-          <a class="portal-link" href="${nieruchomosciOnlineUrl}" target="_blank" rel="noopener noreferrer">Nieruchomości-online — region →</a>
-          <a class="portal-link" href="${getHomeUrl}" target="_blank" rel="noopener noreferrer">GetHome — województwo →</a>
+          ${cardsHtml}
         </div>
       `;
     }
@@ -643,6 +675,16 @@
     });
 
     renderSavedSearchesList();
+
+    // ---------- Service worker (instalowalność + offline shell) ----------
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(() => {
+          // Rejestracja może się nie udać (np. brak HTTPS lokalnie) —
+          // appka działa dalej normalnie, po prostu bez trybu offline.
+        });
+      });
+    }
   </script>
 
 </body>

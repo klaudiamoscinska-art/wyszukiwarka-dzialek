@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Sprawdź składnię JS w index.html
+        run: |
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("index.html", "utf8");
+            const matches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+            if (matches.length === 0) {
+              console.error("Nie znaleziono żadnego bloku <script> w index.html");
+              process.exit(1);
+            }
+            for (const [, code] of matches) {
+              // new Function rzuci SyntaxError, jeśli JS jest niepoprawny —
+              // to jedyny cel tego kroku, kod NIE jest tu wykonywany
+              // (użycie DOM API jak document/localStorage zakończyłoby się
+              // błędem runtime w Node, którego tu unikamy).
+              new Function(code);
+            }
+            console.log(`OK: ${matches.length} blok(i) <script> mają poprawną składnię JS.`);
+          '
+
+      - name: Sprawdź składnię service-worker.js
+        run: node --check service-worker.js
+
+      - name: Waliduj manifest.json
+        run: |
+          node -e 'JSON.parse(require("fs").readFileSync("manifest.json", "utf8")); console.log("OK: manifest.json jest poprawnym JSON-em.");'
