@@ -31,9 +31,14 @@ endpoint wyszukiwania po miejscowości/rozmiarze:**
   (generyczny retry `_get_with_retry`, wyścig mirrorów Overpass, naprawa
   pustych komunikatów wyjątków `describe_exc`), `services/*.py` (jeden
   plik na sekcję) — patrz sekcja 3 „Struktura repo".
-- **Cache-aside w SQLite** (`services/cache.py`) dla 10 z 11 sekcji, z
-  osobnym TTL na sekcję (`config.py`, `TTL_*`) — **plan zagospodarowania
-  świadomie NIE jest cache'owany** (patrz TODO niżej, propozycja #2).
+- **Cache-aside w SQLite** (`services/cache.py`) dla WSZYSTKICH sekcji
+  wzbogacających dane, z osobnym TTL na sekcję (`config.py`, `TTL_*`) —
+  **plan zagospodarowania dołączony 2026-09-04** (`TTL_ZONING`, 7 dni,
+  krótszy niż reszta — patrz sekcja 3, „Trzy optymalizacje wydajności").
+  Identyfikacja działki (ULDK) świadomie wciąż NIE jest cache'owana.
+  **`_conn_lock` (threading.RLock)** serializuje cały dostęp do SQLite —
+  naprawione 2026-09-04 po realnym wyścigu wątków znalezionym przy
+  testowaniu trwałego klienta HTTP (patrz ta sama sekcja).
 - **Werdykt/checklista** (`services/verdict.py`, wzorowana na darmowym
   raporcie Działkopedii): score 0-100, poziom (dobra/do_sprawdzenia/
   wysokie_ryzyko), pełna lista wierszy — **4 poziomy**: `risk` (odejmuje
@@ -51,11 +56,13 @@ endpoint wyszukiwania po miejscowości/rozmiarze:**
   fałszywe „ok, brak mediów") gdy WSZYSTKIE 6 warstw zawiedzie.
 - **Plan zagospodarowania** (`services/zoning.py`) — KIAPP (nowy Rejestr
   Urbanistyczny) i KIMPZP (stary) odpytywane RÓWNOLEGLE, z szybkim
-  podglądem GetMap przed wolnym/zawodnym GetFeatureInfo, i **retry przez
+  podglądem GetMap przed wolnym/zawodnym GetFeatureInfo, **retry przez
   `_get_with_retry` na `ConnectTimeout`/5xx** (naprawione 2026-09-04 — była
-  to realna usterka zgłoszona przez Klaudię na żywej działce). Notatka o
-  planie ogólnym/OUZ (zasada z 1.09.2026) dołączana, gdy nie znaleziono
-  MPZP.
+  to realna usterka zgłoszona przez Klaudię na żywej działce) i **osobny,
+  IPv4-forced `httpx.AsyncClient`** (`main.py::_get_gugik_http_client()`,
+  dodane 2026-09-04, NIE zweryfikowane na żywo — patrz sekcja 3.1, „MPZP
+  ConnectTimeout..."). Notatka o planie ogólnym/OUZ (zasada z 1.09.2026)
+  dołączana, gdy nie znaleziono MPZP.
 - **Budżet czasu dla `/api/resolve`** (`TIMEOUT_RESOLVE_BUDGET=50s`,
   `config.py`) — cała kaskada wyszukiwania działki (do 5 etapów) owinięta w
   `asyncio.wait_for`, więc appka sama zwraca czytelny błąd PO POLSKU zamiast
@@ -64,12 +71,22 @@ endpoint wyszukiwania po miejscowości/rozmiarze:**
 - **Overpass API**: wszystkie skonfigurowane mirrory odpytywane RÓWNOLEGLE
   (wyścig, `asyncio.wait FIRST_COMPLETED`), nie sekwencyjnie — blokada
   jednego mirroru już nie opóźnia sprawdzenia drugiego.
+- **Jeden trwały `httpx.AsyncClient`** (`main.py::_get_http_client()`) na
+  cały czas życia serwera (utworzony w `lifespan`, zamykany przy
+  shutdownie) zamiast nowego klienta przy KAŻDYM żądaniu — dodane
+  2026-09-04, patrz sekcja 3, „Trzy optymalizacje wydajności".
+- **`GET /api/analyze-stream`** — strumieniowa (Server-Sent Events)
+  alternatywa dla `/api/analyze`, używana teraz przez frontend „Analiza
+  działki": szybkie sekcje renderują się od razu, plan zagospodarowania i
+  werdykt/wycena/lista kroków (które i tak potrzebują wszystkich sekcji
+  naraz) dochodzą na końcu. `/api/analyze` nadal istnieje bez zmian —
+  patrz sekcja 3.
 - Jakość powietrza (GIOŚ), UI checklisty jako zwarty spis treści z linkami
   do kart szczegółów (nie duplikacja tekstu), PWA (manifest + service
-  worker, network-first), CI (GitHub Actions), 110 testów pytest
+  worker, network-first), CI (GitHub Actions), 115 testów pytest
   (`tests/test_pure_logic.py`, logika bez sieci — sieć rządowa jest
   całkowicie niedostępna z tego środowiska, patrz sekcja 8).
-- Cache-busting: `static/app.js?v=31`, `CACHE_NAME` service workera `v23`
+- Cache-busting: `static/app.js?v=32`, `CACHE_NAME` service workera `v24`
   — **podnoś oba przy KAŻDEJ zmianie `app.js`**.
 
 **Wyszukiwarka Działek (`wyszukiwarka-dzialek`) — statyczny frontend:**
@@ -105,21 +122,33 @@ endpoint wyszukiwania po miejscowości/rozmiarze:**
 3. **WSTRZYMANE: zbadać skalę Bortle (zanieczyszczenie światłem/hałas)**,
    jak pokazuje Działkopedia. Jw. — tylko research, dopóki Klaudia nie
    poprosi o wdrożenie.
-4. **Propozycje optymalizacji wydajności** (appka jest zbyt wolna przy
-   pełnej analizie) — zgłoszone Klaudii 2026-09-04, **żadna NIE jest
-   wdrożona**, czekają na jej wybór:
-   - (a) Jeden trwały `httpx.AsyncClient` na cały czas życia serwera
-     zamiast nowego przy każdym `/api/analyze` (mniej narzutu TCP/TLS).
-   - (b) Cache dla planu zagospodarowania (jedyna z 11 sekcji bez cache,
-     a zarazem najwolniejsza/najmniej niezawodna).
-   - (c) Strumieniowanie wyników (np. SSE) — szybkie sekcje pokazują się
-     od razu, plan zagospodarowania dochodzi jako ostatni, zamiast appka
-     czekała na WSZYSTKIE 11 sekcji naraz.
+4. **WYKONANE 2026-09-04: wszystkie 3 propozycje optymalizacji
+   wydajności** zgłoszone Klaudii tego samego dnia — (a) trwały
+   `httpx.AsyncClient`, (b) cache dla planu zagospodarowania, (c)
+   strumieniowanie SSE. Szczegóły i dwa realne błędy współbieżności
+   znalezione przy okazji — patrz sekcja 3, „Trzy optymalizacje
+   wydajności". **Nadal otwarte, nie wdrożone w tej rundzie**: przycisk
+   „odśwież teraz" (pomijanie cache'u na żądanie) i dysk trwały na Render —
+   patrz ta sama sekcja.
 5. **Działka testowa „Korbielów 3917/5"** (`241704_2.0002.3917/5`, gmina
-   Jeleśnia, pow. żywiecki) była użyta na żywo przez Klaudię 2026-09-04
-   (m.in. do zgłoszenia błędu ConnectTimeout dla MPZP), ale NIE została
-   jeszcze dopisana do `TEST_PARCELS.md` — dopisz ją, jeśli Klaudia znów
-   się nią posłuży jako działką testową (patrz sekcja 8, punkt 9).
+   Jeleśnia, pow. żywiecki) dopisana do `TEST_PARCELS.md` (plik istnieje
+   TYLKO w `analiza-dzialki`, patrz CLAUDE.md) — Klaudia zgłosiła na niej
+   PONOWNIE błąd `ConnectTimeout` dla MPZP mimo wcześniejszej naprawy
+   (retry). Diagnoza: klik na mapie ładuje warstwę WMS bezpośrednio z
+   przeglądarki Klaudii (omija Render), a backend robi identyczne
+   zapytanie GetMap z serwera Render do tego samego hosta i dostaje
+   `ConnectTimeout` — silna poszlaka na problem sieciowy specyficzny dla
+   połączeń Render → `mapy.geoportal.gov.pl`. Pełna diagnoza i 6-punktowy
+   plan w sekcji 3.1, „MPZP ConnectTimeout mimo że warstwa renderuje się
+   na mapie na żywo". **WDROŻONE 2026-09-04, kroki 1+2** (logowanie
+   diagnostycznego czasu w `_get_with_retry` + osobny IPv4-forced
+   `httpx.AsyncClient` tylko dla `services/zoning.py`,
+   `main.py::_get_gugik_http_client()`) — **NIE zweryfikowane na żywo**
+   (sieć rządowa niedostępna z tego środowiska). **Następny krok**:
+   Klaudia sprawdza na żywo (Render) czy `ConnectTimeout` dla MPZP ustąpił;
+   jeśli nie, logi `_get_with_retry` (nowy czas upłynięcia w komunikacie)
+   powiedzą, czy warto próbować kroki 3-4 (rozdzielenie timeoutu
+   connect/read, więcej prób z backoff) czy IPv4 to ślepy trop.
 
 ---
 
@@ -310,8 +339,14 @@ ekranu głównego") może nadal pokazywać starą wersję UI, bo:
 - `GET /api/resolve-address?query=...` — szukanie po adresie (ulica+numer).
   Geokoduje przez oficjalne API GUGiK, potem `GetParcelByXY`.
 - `GET /api/analyze?parcel_id=...` — główny endpoint, zwraca pełną analizę
-  (ewidencja, budynki, osuwiska, media, hydrologia, plany, pozwolenia,
-  wycena, linki do map, `nearest_road`).
+  w jednym JSON-ie (ewidencja, budynki, osuwiska, media, hydrologia, plany,
+  pozwolenia, wycena, linki do map, `nearest_road`). Bez zmian od 2026-09-04
+  poza wewnętrznym refaktorem (dzieli `_section_specs()`/`_compute_derived()`
+  z endpointem niżej) — kontrakt/odpowiedź identyczne jak wcześniej.
+- `GET /api/analyze-stream?parcel_id=...` — **dodane 2026-09-04**,
+  strumieniowa (Server-Sent Events) alternatywa dla powyższego, której teraz
+  używa frontend „Analiza działki" (patrz sekcja 3, „Trzy optymalizacje
+  wydajności" — pełny opis formatu zdarzeń `meta`/`section`/`done`).
 - `GET /api/search-by-parcel-size?place=&area_m2=&width_m=&length_m=&dims_as_maximum=`
   — „Szukaj działki": jeden uniwersalny endpoint, dowolna kombinacja
   kryteriów (patrz sekcja 3.3).
@@ -656,7 +691,12 @@ kolejność wdrożenia, która została zrealizowana w całości w jednym PR:
 „odśwież teraz", cache dla planu zagospodarowania (7 dni, dopiero po
 przycisku odświeżenia) i dla identyfikacji ULDK (7 dni), decyzja o dysku
 trwałym na Render, progresywne renderowanie wyniku. Wszystko to jest w
-pełnej wersji raportu-artefaktu „Plan Pamięci Podręcznej".
+pełnej wersji raportu-artefaktu „Plan Pamięci Podręcznej". **Aktualizacja
+2026-09-04 (później tego samego dnia)**: cache dla planu zagospodarowania
+i progresywne renderowanie wyniku zostały jednak wdrożone (razem z trwałym
+`httpx.AsyncClient`, na żądanie Klaudii) — patrz „Trzy optymalizacje
+wydajności" niżej. Przycisk „odśwież teraz", cache dla identyfikacji ULDK i
+dysk trwały na Render NADAL nie są zrobione.
 
 11 nowych testów pytest dla `services/cache.py` (fikstura `cache_db` z
 `tmp_path` + `monkeypatch.setattr(cache, "CACHE_DB_PATH", ...)` +
@@ -1423,6 +1463,338 @@ Istniejący test dla sekcji, która się nie udała, przemianowany i
 rozszerzony (`test_build_verdict_failed_section_is_incomplete_and_gets_unknown_row`)
 — teraz potwierdza zarówno brak odjęcia punktów, jak i obecność nowego
 wiersza `tier: "unknown"`. Łącznie 110 testów pytest.
+
+### Trzy optymalizacje wydajności (a/b/c) + dwa realne błędy współbieżności znalezione przy okazji — dodane 2026-09-04
+
+Klaudia poprosiła o wdrożenie wszystkich 3 propozycji z poprzedniego punktu
+TODO naraz: (a) jeden trwały `httpx.AsyncClient`, (b) cache dla planu
+zagospodarowania, (c) strumieniowanie wyników (SSE).
+
+**(a) Trwały `httpx.AsyncClient` (`main.py`).** Każda z 4 tras HTTP otwierała
+dotąd własny `async with httpx.AsyncClient(...) as client:` — nowe
+połączenie TCP+TLS do KAŻDEGO z kilkunastu zewnętrznych hostów rządowych/OSM
+przy KAŻDYM żądaniu, zamiast ponownego użycia już otwartych połączeń
+keep-alive z puli httpx. **Naprawa**: `main.py::_get_http_client()` — leniwie
+tworzony, modułowy singleton, tworzony też przez FastAPI `lifespan` (nowy
+`_lifespan()`, zamyka klienta przy shutdownie) i leniwie w razie potrzeby
+(dla wywołań route'ów bezpośrednio z testów, z pominięciem `lifespan` — np.
+istniejący `tests/test_pure_logic.py::test_resolve_parcel_times_out_...`,
+który woła `main.resolve_parcel()` wprost). `httpx.AsyncClient` jest
+udokumentowany jako bezpieczny do współbieżnego użycia przez wiele żądań
+naraz, więc to nie jest obejście, tylko właściwe rozwiązanie. Wszystkie 4
+trasy (`/api/resolve`, `/api/resolve-address`, `/api/search-by-parcel-size`,
+`/api/analyze`) zaktualizowane; ujednolicony User-Agent
+(`"AnalizaDzialkiGIS/2.0"` — wcześniej `/api/analyze` miał osobny, niespójny
+`"AnalizaDzialki/2.0"`, bez `GIS`, czysty przeoczony detal sprzed podziału
+`main.py` na moduły).
+
+**(b) Cache dla planu zagospodarowania.** Plan zagospodarowania był jedyną
+z sekcji wzbogacających świadomie NIE cache'owaną (patrz „Pamięć podręczna"
+wyżej) — do czasu, aż zaistniałby widoczny w UI mechanizm „dane z: [data]".
+Ten mechanizm (`fetched_at`/`dataAgeNote()`) już istniał dla WSZYSTKICH
+innych cache'owanych sekcji od tamtego dnia, więc podłączenie zoningu do
+DOKŁADNIE TEGO SAMEGO `cache.get_or_fetch()` dało mu tę samą przejrzystość
+za darmo — bez tego kryterium blokującego nie było już powodu czekać.
+Nowy `TTL_ZONING = 7 dni` (`config.py`) — świadomie krótszy niż 30-180 dni
+reszty usług, bo to jedyna sekcja z realną wagą decyzyjną (gmina może
+uchwalić nowy plan w trakcie czyjejś decyzji o zakupie). `cache.get_or_fetch`
+cache'uje WYŁĄCZNIE `status: "ok"` — `"partial"` (szczegóły MPZP nie zdążyły
+dojść, ale plan widoczny) i `"error"` nigdy się nie zamrażają, dokładnie jak
+dla reszty usług. Przycisk „odśwież teraz" (ręczne pominięcie cache'u) i
+cache dla identyfikacji ULDK (7 dni) NADAL nie są zrobione — patrz TODO w
+sekcji 0.
+
+**(c) Strumieniowanie wyników — nowy `GET /api/analyze-stream` (SSE).**
+`/api/analyze` (bez zmian, nadal działa dokładnie jak wcześniej) czekał na
+`asyncio.gather()` WSZYSTKICH 12 gałęzi analizy naraz, w tym najwolniejszą
+i najmniej niezawodną (plan zagospodarowania) — appka pokazywała pusty
+ekran ładowania, dopóki nawet najszybsza sekcja (np. osuwiska, ~1-2s) nie
+mogła się wyświetlić. Nowy endpoint strumieniuje Server-Sent Events:
+- `event: meta` — tożsamość działki, geometria, centroid, powierzchnia,
+  statyczne linki (`permits`/`land_registry`/`map_layers`) — nic tu nie
+  wymaga sieci poza już wykonanym lookupem ULDK, więc to zawsze pierwszy
+  fragment, renderowany natychmiast (mapa + linia „teryt-echo").
+- `event: section` — `{"key": <jedna z 12 nazw>, "value": <wynik sekcji>}`,
+  po jednym na gałąź, w kolejności w jakiej faktycznie się kończą
+  (`asyncio.as_completed`, nie `asyncio.gather`).
+- `event: done` — `{"verdict", "due_diligence", "valuation"}` — te trzy pola
+  potrzebują WSZYSTKICH 12 wyników naraz (patrz `_compute_derived()`), więc
+  fizycznie nie mogą przyjść wcześniej niż na końcu.
+
+Refaktor w `main.py`: `_section_specs()` (buduje listę 12 par
+nazwa+awaitable) i `_compute_derived()` (werdykt/lista kroków/wycena z
+kompletu wyników) są teraz WSPÓLNE dla `/api/analyze`
+(`asyncio.gather`) i `/api/analyze-stream` (`asyncio.as_completed` +
+strumieniowanie) — żeby dwie kopie tej samej logiki (12 usług, TTL, kolejność
+pól) nie mogły się po cichu rozjechać. Podobnie `_analyze_meta()` (parcel/
+geometria/linki) i `_resolve_parcel_geometry()` (lookup ULDK + geometria
+pochodna) są dzielone przez oba endpointy.
+
+**Ważny szczegół implementacyjny**: `_resolve_parcel_geometry()` (lookup
+ULDK, może rzucić `HTTPException` 404/502) jest wywoływane PRZED
+utworzeniem `StreamingResponse` — raz nagłówki odpowiedzi 200 zostaną
+wysłane (co Starlette robi zaraz po rozpoczęciu iteracji po generatorze),
+nie da się już zmienić kodu statusu na normalny błąd JSON. Dzięki temu
+`/api/analyze-stream?parcel_id=zły_numer` nadal zwraca czysty `404` z
+`detail`, dokładnie jak `/api/analyze` — nie „udaje" sukcesu SSE dla
+nieistniejącej działki. Każda POJEDYNCZA sekcja natomiast MOŻE się nie
+udać już PO rozpoczęciu strumienia (np. nieoczekiwany wyjątek zamiast
+zwróconego `{"status": "error", ...}`, którego usługi z zasady same nie
+powinny rzucać, ale to ostatnia linia obrony) — `_named()` łapie to i
+zamienia w wiersz `{"status": "error", "message": "Wewnętrzny błąd sekcji: ..."}`
+zamiast wywalić cały strumień z 500 (nie da się już wtedy zwrócić błędu
+HTTP, nagłówki 200 już poszły). Rozłączenie w trakcie strumienia (albo
+inne przedwczesne wyjście z generatora) anuluje wszystkie jeszcze
+niedokończone z 12 zadań `asyncio.create_task`/`asyncio.ensure_future`,
+zamiast zostawić je samopas.
+
+**Frontend (`static/app.js`)**: `analyzeTerytId()` woła teraz nowy
+`streamAnalysis(terytId)` zamiast pojedynczego `fetch('/api/analyze?...')`.
+Świadomie `fetch()` + `resp.body.getReader()`, NIE natywny `EventSource` —
+`EventSource` nie daje dostępu do treści/kodu odpowiedzi błędu, a appka
+zawsze pokazywała dokładny polski komunikat backendu (`data.detail`) przy
+błędzie 400/404, co dla nieistniejącej działki musiało zostać zachowane.
+Ręczny parser SSE dzieli strumień na ramki po `\n\n` (obsługuje ramki
+podzielone między kolejne odczyty `reader.read()`, buforując resztki).
+`renderResults(data, pending)` dostał drugi, opcjonalny parametr —
+`pending`, `Set` kluczy sekcji, których jeszcze nie ma w `data`. Każda karta
+sekcji (`cardEgib`, `cardLandslide`, `cardUtilities`, `cardHydrology`,
+`cardNature`, `cardAirQuality`, `cardRoad`, `cardZoning`) sprawdza teraz
+najpierw `pending.has(...)` i renderuje `loadingCardHTML()` („Sprawdzam…")
+zamiast prawdziwej treści, dopóki dane nie dotrą — logika budowania
+KAŻDEJ karty z prawdziwych danych jest niezmieniona, tylko owinięta w
+`if/else`. Werdykt/checklista/wycena (`v`/`dd`/`val`) czekają na zdarzenie
+`"done"` — dopóki go nie ma, karta werdyktu pokazuje pasek postępu
+(„Sprawdzam działkę… (N/12)"), bez zwodniczego pustego/częściowego wyniku.
+`renderMap()` woła się raz, przy zdarzeniu `"meta"` — mapa i linia
+tożsamości działki pojawiają się natychmiast, zanim jakakolwiek sekcja
+zdąży się policzyć.
+
+**Dwa realne błędy współbieżności znalezione przy weryfikacji (nie
+związane z (a)/(b)/(c) wprost, ale ujawnione przez nie) —
+`services/cache.py`.** Zweryfikowane przez Starlette `TestClient` +
+zamockowane usługi (bo sieć rządowa jest niedostępna z tego środowiska —
+patrz sekcja 8): pierwsze prawdziwe wywołanie `/api/analyze` na świeżym
+`cache.db` (czyli DOKŁADNIE stan po KAŻDYM deployu na Render, bo cache
+resetuje się przy restarcie kontenera — patrz „Pamięć podręczna" wyżej)
+uruchamia 12 współbieżnych `cache.get_or_fetch()` naraz przez
+`asyncio.gather`/`asyncio.as_completed`. To ujawniło:
+1. **Wyścig przy tworzeniu połączenia** — kilka wątków roboczych
+   (`asyncio.to_thread`) mogło jednocześnie zobaczyć `_conn is None` i
+   zacząć czytać z bazy, zanim `CREATE TABLE` innego wątku zdążyło się
+   zatwierdzić (`sqlite3.OperationalError: no such table: cache_entries`).
+2. **Wyścig przy współdzielonym połączeniu** — `check_same_thread=False`
+   znosi TYLKO ograniczenie „ten sam wątek", nie czyni jednego obiektu
+   `sqlite3.Connection` bezpiecznym do naprawdę współbieżnego użycia z
+   wielu wątków; dwa wątki wołające `conn.execute()`/`conn.commit()` w tym
+   samym momencie na tym samym połączeniu ścigały się o własne, niejawne
+   transakcje (`sqlite3.OperationalError: cannot commit - no transaction
+   is active`).
+
+**Naprawa**: jeden `threading.RLock` (`_conn_lock`, RLock nie zwykły Lock,
+bo `_read_row`/`_write_row` trzymają go i wołają `_get_conn()`, który
+próbuje go wziąć ponownie na tym samym wątku — zwykły `Lock` by się
+zakleszczył) trzymany przez CAŁY czas trwania tworzenia połączenia, odczytu
+i zapisu — serializuje cały dostęp do SQLite w tym module. Pojedyncza
+operacja SQLite trwa mikrosekundy, więc to nie zjada współbieżności, którą
+`asyncio.gather`/`asyncio.to_thread` dają reszcie `/api/analyze` (prawdziwe
+zapytania sieciowe biegną poza tym lockiem). Nowy test regresyjny
+(`test_get_or_fetch_concurrent_first_touch_does_not_race`) uruchamia 24
+współbieżne pierwsze dotknięcia cache'u na świeżym `cache.db` — bez locka
+rzucał którymś z dwóch powyższych wyjątków, z lockiem przechodzi.
+
+**Testy**: nowy `test_get_or_fetch_concurrent_first_touch_does_not_race`
+(opisany wyżej) i
+`test_analyze_and_analyze_stream_agree_on_sections_and_derived_fields` —
+end-to-end przez `fastapi.testclient.TestClient` (realne uruchomienie
+`lifespan` + routing FastAPI, z zamockowanymi funkcjami usług), sprawdzający
+że `/api/analyze` i zebrany-z-SSE `/api/analyze-stream` zwracają dokładnie
+te same 12 wyników sekcji oraz to samo `verdict`/`due_diligence`/`valuation`
+(pomijając `cached`/`fetched_at`, które różnią się między dwoma kolejnymi
+wywołaniami przez sam fakt trafienia w cache przy drugim). Razem 112 testów
+pytest (było 110).
+
+**Zweryfikowane wizualnie i funkcjonalnie w Playwright** (ten sam wzorzec co
+poprzednie rundy — lokalny `npm install leaflet`, bo `unpkg.com` jest
+zablokowane przez proxy tego środowiska identycznie jak domeny rządowe) —
+ad-hoc serwer Node serwujący `static/` z podmienionym źródłem Leaflet i
+własnym, kontrolowanym `/api/analyze-stream` (12 sekcji z opóźnieniem
+120ms między każdą, zoning celowo ostatni). Potwierdzone na zrzutach
+ekranu: ~500ms po kliknięciu „Sprawdź działkę" mapa i linia tożsamości są
+już widoczne, karta „Plany zagospodarowania" pokazuje „Sprawdzam…", karta
+„Zagrożenie osuwiskowe" (jedna z pierwszych 4 gotowych sekcji) już pokazuje
+prawdziwą treść, a werdykt pokazuje pasek postępu „Sprawdzam działkę…
+(4/12)"; po dojściu zdarzenia `"done"` werdykt pokazuje finalny wynik
+(„90 · Dobra"), a karta zoningu pokazuje prawdziwą treść. Zero błędów JS w
+konsoli poza oczekiwanymi, niezamockowanymi zapytaniami o kafelki
+mapy/warstwy WMS (blokowane przez proxy tej piaskownicy, nie błąd appki).
+
+**Nie zweryfikowane na żywo**: rzeczywiste przyspieszenie na produkcji
+(Render) — logowanie czasu z `_timed()` (dodane wcześniej, patrz „Pamięć
+podręczna") to jedyny sposób to zmierzyć stąd, tak jak zawsze w tym
+środowisku (sieć rządowa niedostępna — patrz sekcja 8). Także: czy proxy
+Render bufory całą odpowiedź `StreamingResponse` zamiast przepuszczać ją
+fragmentami na bieżąco — jeśli tak, strumieniowanie nadal zadziała
+POPRAWNIE (frontend dostanie te same dane), tylko straci część zysku w
+postrzeganej szybkości (wszystko przyjdzie naraz na końcu zamiast
+progresywnie) — nie regresja, tylko brak pełnego zysku z (c) w tym
+konkretnym scenariuszu; dodany nagłówek `X-Accel-Buffering: no` to
+standardowa, ale niepotwierdzona z tego środowiska, próba wyłączenia
+takiego buforowania po stronie proxy.
+
+Cache-bust: `app.js?v=32`, `CACHE_NAME` service workera → `v24`.
+
+### MPZP ConnectTimeout mimo że warstwa renderuje się na mapie na żywo — analiza przyczyny + plan naprawy — dodane 2026-09-04, kroki 1+2 WDROŻONE później tego samego dnia (patrz podsekcja niżej)
+
+Klaudia zgłosiła ten sam objaw jak wcześniej (patrz „KIMPZP ConnectTimeout bez
+retry" wyżej — retry przez `_get_with_retry` był wtedy wdrożony jako naprawa)
+**ponownie, na tej samej działce testowej „Korbielów 3917/5"**
+(`241704_2.0002.3917/5`, teraz dopisana do `TEST_PARCELS.md`): karta „Plan
+zagospodarowania" pokazuje `Usługa MPZP (KIMPZP) niedostępna: ConnectTimeout`,
+ale po kliknięciu na mapie warstwy „MPZP (starszy)" / „Rejestr Urbanistyczny"
+(przełącznik w kontrolce warstw Leaflet) plan renderuje się NATYCHMIAST i
+poprawnie. Retry z 2026-09-04 (1 dodatkowa próba, opóźnienie 2s,
+`_get_with_retry` w `_mpzp_has_plan_drawn()`) najwyraźniej nie wystarcza —
+to sam retry nie jest źle zaimplementowany, tylko adresuje inny rodzaj
+usterki niż ta, która tu realnie występuje.
+
+**Kluczowa obserwacja, która zawęża diagnozę**: te dwie ścieżki NIE są tym
+samym zapytaniem z dwóch miejsc — to dwa całkowicie różne pochodzenia
+sieciowe do tego samego hosta `mapy.geoportal.gov.pl`:
+- **Klik na mapie** → `static/app.js` (`mpzpLayer`/`appLayer`,
+  `L.tileLayer.wms(...)`, linie ~81-96) każe **przeglądarce użytkownika**
+  pobrać kafle GetMap bezpośrednio z `mapy.geoportal.gov.pl` — połączenie
+  wychodzi z sieci/ISP Klaudii, nigdy nie dotyka Render.
+- **Karta „Plan zagospodarowania"** → `services/zoning.py::_mpzp_has_plan_drawn()`
+  robi to samo zapytanie GetMap (ten sam host, ta sama logika — to celowo
+  ten sam „szybki podgląd" co warstwa na mapie, patrz docstring), ale
+  **z serwera backendu na Render**, przez współdzielony `httpx.AsyncClient`
+  (`main.py::_get_http_client()`).
+
+Skoro identyczne zapytanie (ten sam URL, te same warstwy, ten sam typ
+żądania GetMap) udaje się natychmiast z przeglądarki Klaudii, a z Render
+kończy się `ConnectTimeout` — czyli **nie udaje się nawet nawiązać
+połączenia TCP** w ciągu `TIMEOUT_MPZP_PROBE` (15s), zanim jakiekolwiek dane
+zdążą polecieć — to nie jest ogólna zawodność usługi GUGiK (przeglądarka
+właśnie udowodniła, że usługa odpowiada szybko). To wskazuje na coś
+specyficznego dla **ścieżki sieciowej / adresu IP Render → ten host**:
+throttling/blokada po stronie GUGiK dla ruchu z zakresów IP znanych
+dostawców chmurowych, gorsze trasowanie/peering z centrum danych Render do
+Polski niż z domowego/firmowego łącza Klaudii, albo niedopasowanie
+IPv4/IPv6 (httpx/httpcore nie robi „Happy Eyeballs" jak przeglądarki — jeśli
+DNS zwróci najpierw adres IPv6, a ten jest dla Render niedostępny/wolny,
+próba połączenia spali cały timeout na martwym adresie zamiast od razu
+przełączyć się na IPv4, tak jak zrobiłaby to przeglądarka). **Nie da się
+tego zweryfikować z tego środowiska** — sieć rządowa jest stąd całkowicie
+zablokowana (patrz CLAUDE.md, sekcja 8) — to najlepiej uzasadniona hipoteza
+z dostępnych dowodów, NIE potwierdzony fakt.
+
+**Plan naprawy (do wdrożenia w kolejnej rundzie, po decyzji Klaudii —
+kolejność = priorytet, każdy krok osobno testowalny i odwracalny):**
+
+1. **Logowanie diagnostyczne najpierw** — zanim zgadujemy dalej, dodać do
+   `_get_with_retry`/`_mpzp_has_plan_drawn` logowanie realnego czasu trwania
+   nieudanej próby (`time.monotonic()` przed/po) obok już logowanego typu
+   wyjątku. Jeśli błąd przychodzi w ułamku sekundy, to nie jest wyczerpanie
+   15s timeoutu tylko coś jak natychmiastowy `ConnectionRefused`
+   zamaskowany jako `ConnectTimeout` przez httpx/DNS — inna diagnoza, inna
+   naprawa. Sprawdzić realne logi Render przy najbliższym powtórzeniu
+   błędu na żywo (jedyny sposób to zweryfikować, patrz wyżej).
+2. **Wymusić IPv4 dla połączeń do `mapy.geoportal.gov.pl`** (i prawdopodobnie
+   też `integracja.gugik.gov.pl` — ta sama rodzina usług GUGiK) —
+   najtańsza, odwracalna zmiana adresująca najbardziej prawdopodobną
+   przyczynę (brak Happy Eyeballs w httpx/httpcore). Technicznie:
+   `httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(local_address="0.0.0.0"))`
+   wymusza IPv4 (znany, udokumentowany trik httpcore). Do rozważenia: osobny
+   klient/transport tylko dla usług GUGiK (zamiast zmieniać dzielony
+   `_get_http_client()` dla WSZYSTKICH usług) — nie mamy dowodu, że problem
+   dotyczy też ULDK/WFS/Overpass/ISOK/PIG-PIB, więc nie zmieniać ich
+   zachowania bez powodu.
+3. **Rozdzielić timeout połączenia od timeoutu odczytu** — `TIMEOUT_MPZP_PROBE`
+   dziś to jedna liczba (`timeout=15.0`) stosowana przez httpx równo do fazy
+   connect/read/write/pool. Zamiana na `httpx.Timeout(connect=20.0, read=8.0,
+   write=8.0, pool=8.0)` (przykładowe wartości do doprecyzowania) pozwala dać
+   fazie nawiązania połączenia więcej czasu bez podnoszenia całkowitego
+   najgorszego przypadku dla reszty zapytania — sensowne TYLKO jeśli krok 1
+   potwierdzi, że błąd naprawdę wyczerpuje pełny timeout (a nie ginie od
+   razu).
+4. **Więcej prób + rosnący odstęp między nimi, tylko dla `ConnectTimeout` na
+   hostach GUGiK** — dziś 1 retry / 2s. Jeśli krok 1-2 nie wystarczą (problem
+   bywa dłuższym, przejściowym oknem przeciążenia/blokady, nie stałą
+   blokadą), podnieść do 2 prób z rosnącym opóźnieniem (np. 2s, 5s). Robić
+   to na końcu, nie jako pierwszy krok — dokłada się do budżetu czasu całej
+   sekcji zoningu (i pośrednio całego `/api/analyze`), a nie naprawia
+   problemu systemowego, jeśli przyczyna to trwała blokada, nie chwilowa
+   niedostępność.
+5. **Jeśli 1-4 nie pomogą: przejście na bezpośredni WMS dostawcy gminy
+   (epodgik.pl i podobni)** zamiast krajowego agregatora KIMPZP/KIAPP —
+   to już opisana, świadomie odłożona, WIĘKSZA zmiana architektoniczna
+   (patrz sekcja 7, „epodgik.pl") wymagająca rejestru gmina→dostawca
+   podobnego do `WFS_POWIAT_REGISTRY`. Traktować jako ostateczność, nie
+   pierwszy krok — start dopiero po wyraźnej decyzji Klaudii, bo to
+   osobny, wielorundowy projekt.
+6. **Weryfikacja na żywo (jedyny sposób, ten sandbox ma sieć rządową
+   całkowicie zablokowaną)**: po wdrożeniu wybranego kroku, deploy na
+   Render i powtórzenie analizy dla „Korbielów 3917/5" (teraz w
+   `TEST_PARCELS.md`) bezpośrednio przez żywe API — potwierdzić na min.
+   2-3 różnych działkach/gminach, nie tylko jednej, zanim uznać problem za
+   naprawiony.
+
+**Dodatkowa obserwacja warta sprawdzenia przy okazji**: jeśli krok 2
+(wymuszenie IPv4) faktycznie pomoże dla MPZP, ten sam mechanizm może
+tłumaczyć część innych, pozornie niezwiązanych „usługa niedostępna"
+zgłoszeń już udokumentowanych w tym pliku dla Overpass/WFS powiatowych —
+czyli może to nie być N osobnych przypadków zawodności usług, tylko jeden
+wspólny, systemowy problem sieciowy Render → infrastruktura rządowa/OSM w
+Polsce. Nie zakładać tego z góry — potwierdzić dopiero po tym, jak krok 2
+faktycznie zadziała dla MPZP.
+
+#### Wdrożone: kroki 1 (logowanie diagnostyczne) i 2 (wymuszenie IPv4) — dodane 2026-09-04, NIE zweryfikowane na żywo
+
+Na prośbę Klaudii wdrożone kroki 1 i 2 z planu wyżej (3-6 świadomie
+zostawione — czekają na wynik weryfikacji na żywo tych dwóch).
+
+**Krok 1 — `http_utils._get_with_retry`** mierzy teraz `time.monotonic()`
+wokół każdej próby i loguje upłynięty czas przy nieudanej próbie (`"GET %s:
+próba %d/%d nieudana po %.1fs (%s: %s)"`, było bez czasu). To jedyny
+sposób odróżnić „naprawdę wyczerpał 15s timeoutu" od „padło od razu"
+(inna diagnoza, inna naprawa) — patrz Render logi przy najbliższym
+odtworzeniu błędu na żywo. Test: `test_get_with_retry_logs_elapsed_time_of_failed_attempt`.
+
+**Krok 2 — drugi, IPv4-forced `httpx.AsyncClient`, TYLKO dla
+`services/zoning.py`** (`main.py::_get_gugik_http_client()`, obok
+istniejącego `_get_http_client()`): `httpx.AsyncHTTPTransport(local_address="0.0.0.0")`
+— potwierdzony (czytając źródło `httpcore._backends.anyio.AnyIOBackend.connect_tcp`,
+nie zgadywany) trik wymuszający rodzinę IPv4, bo `local_host="0.0.0.0"`
+przekazywany do `anyio.connect_tcp()` jest poprawny wyłącznie dla gniazda
+AF_INET. Świadomie NIE zmieniono dzielonego `_get_http_client()` używanego
+przez WSZYSTKIE inne usługi (ULDK/WFS/Overpass/ISOK/PIG-PIB/GDOŚ/GIOŚ/KIUT/
+KIEG) — nie mamy dowodu, że mają ten sam problem, więc nie zmieniać ich
+zachowania bez powodu (zgodnie z planem wyżej). Drugi klient tworzony/
+zamykany w `_lifespan()` dokładnie jak pierwszy. `_section_specs()` dostał
+nowy, opcjonalny parametr `gugik_client` (domyślnie `None` → pada z
+powrotem na zwykły `client`, więc istniejący kod/testy wołające ją z jednym
+klientem nadal działają) — używany WYŁĄCZNIE dla gałęzi `"zoning"`, każda z
+pozostałych 11 sekcji nadal dostaje zwykły, współdzielony klient. Oba
+endpointy (`/api/analyze`, `/api/analyze-stream`) przekazują teraz
+`_get_gugik_http_client()` jako ten parametr. Testy:
+`test_get_gugik_http_client_forces_ipv4_and_is_separate_from_shared_client`
+(potwierdza `local_address` i że to osobna, ale wciąż leniwie-singletonowa
+instancja) i `test_analyze_uses_gugik_client_only_for_zoning` (end-to-end
+przez `TestClient`, potwierdza że `get_zoning` dostaje `_gugik_http_client`,
+a `check_landslide` — jako przykład innej sekcji — dostaje zwykły
+`_http_client`, i że to dwa różne obiekty). Razem 115 testów pytest (było 112).
+
+**Nie zweryfikowane na żywo** (jak zawsze przy zmianach dotykających sieci
+rządowej z tego środowiska — patrz sekcja 8): czy wymuszenie IPv4
+faktycznie naprawia `ConnectTimeout` dla MPZP. **Następny krok dla
+Klaudii**: zdeployować, powtórzyć analizę „Korbielów 3917/5" (i
+najlepiej 2-3 inne działki z MPZP) na żywo, i sprawdzić logi Render pod
+kątem nowego czasu upłynięcia w logu `_get_with_retry` — jeśli
+`ConnectTimeout` nadal występuje, ten log powie, czy nadal wyczerpuje pełne
+15s (krok 3/4 z planu warte spróbowania) czy pada natychmiast (inna
+przyczyna, IPv4 nie pomógł, wracać do diagnozy). Cache-bust NIE dotyczy
+(brak zmian w `static/`).
 
 ### 3.2 Zakładka „Szukaj działki" — wyszukiwanie po miejscowości + rozmiarze
 
