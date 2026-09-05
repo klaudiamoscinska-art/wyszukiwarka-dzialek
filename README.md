@@ -30,8 +30,9 @@ i wejść na `http://localhost:8000/`.
 Appka jest hostowana na GitHub Pages:
 `https://klaudiamoscinska-art.github.io/wyszukiwarka-dzialek/` — deploy
 jest automatyczny po pushu do `main` (ok. 30–60 s). Szerszy kontekst
-techniczny i historia decyzji projektowych są opisane w
-[`HANDOFF.md`](./HANDOFF.md).
+techniczny (obie appki, decyzje projektowe, znane pułapki) jest opisany w
+`HANDOFF.md` w repo [`analiza-dzialki`](https://github.com/klaudiamoscinska-art/analiza-dzialki/blob/main/HANDOFF.md)
+— ten plik istnieje tylko tam, żeby nie utrzymywać dwóch kopii.
 
 ## Jak dodać nową miejscowość
 
